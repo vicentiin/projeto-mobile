@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Pedidos</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="login-screen" class="login-container">
+        <div class="login-box">
+            <h2>Sistema de Pedidos</h2>
+            <div id="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" placeholder="Digite seu email">
+                </div>
+                <div class="form-group">
+                    <label for="password">Senha</label>
+                    <input type="password" id="password" placeholder="Digite sua senha">
+                </div>
+                <button id="login-btn">Entrar</button>
+                <button id="show-register-btn" class="secondary-btn">Cadastrar novo funcionário</button>
+                <p id="login-error"></p>
+            </div>
+
+            <div id="register-form" class="hidden">
+                <h3>Cadastro de Funcionário</h3>
+                <div class="form-group">
+                    <label for="reg-email">Email</label>
+                    <input type="email" id="reg-email" placeholder="Digite seu email">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">Senha</label>
+                    <input type="password" id="reg-password" placeholder="Digite sua senha (mínimo 6 caracteres)">
+                </div>
+                <div class="form-group">
+                    <label for="reg-name">Nome</label>
+                    <input type="text" id="reg-name" placeholder="Digite seu nome">
+                </div>
+                <div class="form-group">
+                    <label for="reg-type">Tipo de Usuário</label>
+                    <select id="reg-type" class="form-control">
+                        <option value="garcom">Garçom</option>
+                        <option value="gerente">Gerente</option>
+                    </select>
+                </div>
+                <button id="register-btn">Cadastrar</button>
+                <button id="cancel-register-btn" class="secondary-btn">Voltar para login</button>
+                <p id="register-error"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Conteúdo Principal -->
+    <div id="main-content" class="container main-content">
+        <div class="header">
+            <span id="user-greeting">Bem-vindo, <span id="user-name"></span></span>
+            <button id="logout-btn" class="logout-btn">Sair</button>
+        </div>
+        
+        <!-- Seção de Pedidos -->
+        <div class="section">
+            <h2>Pedidos</h2>
+            <button id="add-pedido-btn" class="action-btn">Adicionar Pedido</button>
+            <div id="pedidos-table-container">
+                <table id="pedidos-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Status</th>
+                            <th>Produto</th>
+                            <th>Quantidade</th>
+                            <th>Preço Unitário</th>
+                            <th>Preço Total</th>
+                            <th>Funcionário</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pedidos-list">
+                        <!-- Pedidos serão carregados aqui -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Formulário de Pedido (inicia escondido) -->
+        <div id="pedido-form-container" class="section hidden">
+            <h2 id="pedido-form-title">Adicionar Pedido</h2>
+            <form id="pedido-form">
+                <div class="form-row">
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="pedido-id">ID do Pedido</label>
+                            <input type="text" id="pedido-id" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="pedido-status">Status</label>
+                            <select id="pedido-status" required>
+                                <option value="PENDENTE">PENDENTE</option>
+                                <option value="EM_PREPARO">EM PREPARO</option>
+                                <option value="PRONTO">PRONTO</option>
+                                <option value="ENTREGUE">ENTREGUE</option>
+                                <option value="CANCELADO">CANCELADO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="pedido-produto">Produto</label>
+                            <select id="pedido-produto" required>
+                                <!-- Produtos serão carregados aqui -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pedido-quantidade">Quantidade</label>
+                            <input type="number" id="pedido-quantidade" min="1" value="1" required>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" id="save-pedido-btn">Salvar</button>
+                <button type="button" id="cancel-pedido-btn">Cancelar</button>
+                <input type="hidden" id="pedido-edit-mode" value="false">
+            </form>
+        </div>
+        
+        <!-- Seção de Produtos (apenas para admin) -->
+        <div id="produtos-section" class="section admin-only hidden">
+            <h2>Produtos</h2>
+            <button id="add-produto-btn" class="action-btn">Adicionar Produto</button>
+            <div id="produtos-table-container">
+                <table id="produtos-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Descrição</th>
+                            <th>Preço Atual</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="produtos-list">
+                        <!-- Produtos serão carregados aqui -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Formulário de Produto (inicia escondido) -->
+        <div id="produto-form-container" class="section admin-only hidden">
+            <h2 id="produto-form-title">Adicionar Produto</h2>
+            <form id="produto-form">
+                <div class="form-row">
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="produto-id">ID do Produto</label>
+                            <input type="text" id="produto-id" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="produto-descricao">Descrição</label>
+                            <input type="text" id="produto-descricao" required>
+                        </div>
+                    </div>
+                    <div class="form-col">
+                        <div class="form-group">
+                            <label for="produto-preco">Preço Atual</label>
+                            <input type="number" id="produto-preco" min="0" step="0.01" required>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" id="save-produto-btn">Salvar</button>
+                <button type="button" id="cancel-produto-btn">Cancelar</button>
+                <input type="hidden" id="produto-edit-mode" value="false">
+            </form>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    
+    <!-- Nosso JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
