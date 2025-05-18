@@ -1,9 +1,12 @@
 {
+  "main": "view/app.js",
+  "scripts": {
+    "start": "node view/app.js"
+  },
   "dependencies": {
     "firebase": "^11.6.1"
   },
-
   "engines": {
-    "node": ">=16"
+    "node": "16.x"
   }
 }
