@@ -17,11 +17,7 @@
       ".read": "auth != null && (root.child('funcionarios').child(auth.uid).child('tipo').val() === 'garcom' || auth.token.isAdmin === true)",
       
      
-      ".write": "
-        (data.exists() && data.child('idFuncionario').val() === auth.uid) ||
-        (!data.exists() && newData.child('idFuncionario').val() === auth.uid) ||
-        auth.token.isAdmin === true
-      ",
+      ".write": "(data.exists() && data.child('idFuncionario').val() === auth.uid) || (!data.exists() && newData.child('idFuncionario').val() === auth.uid) ||auth.token.isAdmin === true",
       
       "precoUnitario": {
         ".write": "auth.token.isAdmin === true"

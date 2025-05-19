@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Pedidos</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Ícone básico -->
+<link rel="icon" href="/public/images/icons/icon-512x512.png" type="image/png">
+
+<!-- Para Android/iOS -->
+<link rel="manifest" href="/manifest.json">
+
+<!-- Para Safari/iOS -->
+<link rel="apple-touch-icon" href="/public/images/icons/icon-512x512.png">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="icon" href="/public/images/icons/icon-512x512.png" type="image/png">
 </head>
 <body>
     <!-- Tela de Login -->
@@ -148,31 +159,33 @@
         
         <!-- Formulário de Produto (inicia escondido) -->
         <div id="produto-form-container" class="section admin-only hidden">
-            <h2 id="produto-form-title">Adicionar Produto</h2>
-            <form id="produto-form">
-                <div class="form-row">
-                    <div class="form-col">
-                        <div class="form-group">
-                            <label for="produto-id">ID do Produto</label>
-                            <input type="text" id="produto-id" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="produto-descricao">Descrição</label>
-                            <input type="text" id="produto-descricao" required>
-                        </div>
-                    </div>
-                    <div class="form-col">
-                        <div class="form-group">
-                            <label for="produto-preco">Preço Atual</label>
-                            <input type="number" id="produto-preco" min="0" step="0.01" required>
-                        </div>
-                    </div>
+    <h2 id="produto-form-title">Adicionar Produto</h2>
+    <form id="produto-form">
+        <div class="form-row">
+            <div class="form-col">
+                <div class="form-group">
+    <label for="produto-id">ID do Produto</label>
+    <input type="text" id="produto-id" class="form-control" readonly 
+       placeholder="(Será gerado automaticamente)"
+           style="background-color: #f5f5f5;">
+</div>
+                <div class="form-group">
+                    <label for="produto-descricao">Descrição</label>
+                    <input type="text" id="produto-descricao" class="form-control" required>
                 </div>
-                <button type="submit" id="save-produto-btn">Salvar</button>
-                <button type="button" id="cancel-produto-btn">Cancelar</button>
-                <input type="hidden" id="produto-edit-mode" value="false">
-            </form>
+            </div>
+            <div class="form-col">
+                <div class="form-group">
+                    <label for="produto-preco">Preço Atual (R$)</label>
+                    <input type="number" id="produto-preco" class="form-control" min="0" step="0.01" required>
+                </div>
+            </div>
         </div>
+        <button type="submit" class="btn btn-primary" id="save-produto-btn">Salvar</button>
+        <button type="button" class="btn btn-secondary" id="cancel-produto-btn">Cancelar</button>
+        <input type="hidden" id="produto-edit-mode" value="false">
+    </form>
+</div>
     </div>
 
     <!-- Firebase SDK -->

@@ -103,8 +103,6 @@ async function registerFuncionario() {
         registerError.textContent = error.message;
     }
 }
-
-// Função para fazer login
 async function login() {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
@@ -119,7 +117,7 @@ async function login() {
         
         if (!funcionario || !funcionario.ativo) {
             await auth.signOut();
-            throw new Error('Acesso não autorizado');
+            throw new Error('Acesso não autorizado. Sua conta pode estar desativada ou você não tem permissão para acessar o sistema.');
         }
         
         currentUser = {
@@ -129,18 +127,47 @@ async function login() {
             nome: funcionario.nome
         };
         
-        // Atualizar UI
         updateUIForUser();
-        
-        // Carregar dados
         loadData();
         
     } catch (error) {
         console.error('Erro no login:', error);
-        loginError.textContent = error.message;
+        
+        let errorMessage = 'Erro ao fazer login';
+        
+        // Verifica se é um erro do Firebase Authentication
+        if (error instanceof Error && error.message.includes('auth/')) {
+            const errorCode = error.message.split('auth/')[1].split(')')[0];
+            
+            switch (errorCode) {
+                case 'invalid-email':
+                    errorMessage = 'E-mail inválido. Por favor, verifique o formato.';
+                    break;
+                case 'user-disabled':
+                    errorMessage = 'Esta conta foi desativada.';
+                    break;
+                case 'user-not-found':
+                case 'wrong-password':
+                    errorMessage = 'E-mail ou senha incorretos.';
+                    break;
+                case 'too-many-requests':
+                    errorMessage = 'Muitas tentativas falhas. Tente novamente mais tarde.';
+                    break;
+                case 'network-request-failed':
+                    errorMessage = 'Problema de conexão. Verifique sua internet.';
+                    break;
+                default:
+                    errorMessage = 'E-mail ou senha incorretos.';
+            }
+        } else {
+            // Para outros erros (como o seu throw new Error)
+            errorMessage = error.message || 'Erro ao fazer login.';
+        }
+        
+        loginError.textContent = errorMessage;
+        loginError.style.display = 'block';
     }
 }
-
 // Função para fazer logout
 async function logout() {
     try {
@@ -287,7 +314,54 @@ function updateProdutosDropdown() {
     });
 }
 
-// Função para mostrar formulário de pedido
+function showProdutoForm(produto = null) {
+    console.log('Função showProdutoForm executada'); // Debug 1
+    
+    const formTitle = document.getElementById('produto-form-title');
+    const idInput = document.getElementById('produto-id');
+    const descricaoInput = document.getElementById('produto-descricao');
+    const precoInput = document.getElementById('produto-preco');
+    const editModeInput = document.getElementById('produto-edit-mode');
+
+    console.log('Elementos obtidos:', {formTitle, idInput, descricaoInput, precoInput, editModeInput}); // Debug 2
+
+    if (produto) {
+        console.log('Modo edição ativado'); // Debug 3
+        formTitle.textContent = 'Editar Produto';
+        editModeInput.value = 'true';
+        idInput.value = produto.id || '';
+        descricaoInput.value = produto.descricao || '';
+        precoInput.value = produto.precoAtual || '';
+    } else {
+        console.log('Modo novo produto ativado'); // Debug 4
+        formTitle.textContent = 'Adicionar Produto';
+        editModeInput.value = 'false';
+        idInput.value = '';
+        descricaoInput.value = '';
+        precoInput.value = '';
+    }
+
+    const tableContainer = document.getElementById('produtos-table-container');
+    const formContainer = document.getElementById('produto-form-container');
+    
+    console.log('Elementos de UI:', {tableContainer, formContainer}); // Debug 5
+
+    tableContainer.classList.add('hidden');
+    formContainer.classList.remove('hidden');
+    
+    if (produto) {
+        descricaoInput.focus();
+    } else {
+        document.getElementById('produto-descricao').focus();
+    }
+}
+async function getNextProdutoId() {
+    const counterRef = database.ref('counters/produtos');
+    const transaction = await counterRef.transaction(currentValue => {
+        return (currentValue || 1000) + 1; // Começa do 1000 se não existir
+    });
+    return transaction.snapshot.val();
+}
 function showPedidoForm() {
     document.getElementById('pedido-form-title').textContent = 'Adicionar Pedido';
     document.getElementById('pedido-edit-mode').value = 'false';
@@ -298,10 +372,9 @@ function showPedidoForm() {
     document.getElementById('pedidos-table-container').classList.add('hidden');
     document.getElementById('pedido-form-container').classList.remove('hidden');
     
-    // Garantir que o dropdown de produtos está atualizado
+    // Atualizar dropdown de produtos se necessário
     updateProdutosDropdown();
 }
-
 // Função para esconder formulário de pedido
 function hidePedidoForm() {
     document.getElementById('pedidos-table-container').classList.remove('hidden');
@@ -420,17 +493,6 @@ async function deletePedido(idPedido) {
     }
 }
 
-// Função para mostrar formulário de produto
-function showProdutoForm() {
-    document.getElementById('produto-form-title').textContent = 'Adicionar Produto';
-    document.getElementById('produto-edit-mode').value = 'false';
-    document.getElementById('produto-id').value = '';
-    document.getElementById('produto-descricao').value = '';
-    document.getElementById('produto-preco').value = '';
-    
-    document.getElementById('produtos-table-container').classList.add('hidden');
-    document.getElementById('produto-form-container').classList.remove('hidden');
-}
 
 // Função para esconder formulário de produto
 function hideProdutoForm() {
@@ -472,17 +534,17 @@ async function editPedido(idPedido) {
     }
 }
 
-
-// Função para salvar produto
-// Função para salvar produto
 async function saveProduto(e) {
     e.preventDefault();
 
     try {
+        const descricaoInput = document.getElementById('produto-descricao');
+        const precoInput = document.getElementById('produto-preco');
+        
+        const descricao = descricaoInput.value.trim();
+        const precoAtual = parseFloat(precoInput.value);
         const isEditMode = document.getElementById('produto-edit-mode').value === 'true';
-        const idProduto = document.getElementById('produto-id').value.trim();
-        const descricao = document.getElementById('produto-descricao').value.trim();
-        const precoAtual = parseFloat(document.getElementById('produto-preco').value);
+        const idProduto = document.getElementById('produto-id').value;
 
         // Validações
         if (!descricao) throw new Error('Descrição é obrigatória');
@@ -495,14 +557,15 @@ async function saveProduto(e) {
         };
 
         if (isEditMode) {
-            if (!idProduto) {
-                throw new Error('ID do produto é obrigatório para edição');
-            }
+            if (!idProduto) throw new Error('ID do produto é obrigatório para edição');
             await produtosRef.child(idProduto).update(produtoData);
         } else {
-            // Criar um novo produto com ID automático
-            const newProdutoRef = produtosRef.push();
-            await newProdutoRef.set(produtoData);
+            // Modo criação - gera novo ID numérico
+            const newId = await getNextProdutoId();
+            await produtosRef.child(newId).set(produtoData);
+            
+            // Atualiza o campo ID no formulário
+            document.getElementById('produto-id').value = newId;
         }
 
         hideProdutoForm();
@@ -588,7 +651,11 @@ document.getElementById('cancel-pedido-btn').addEventListener('click', hidePedid
 document.getElementById('pedido-form').addEventListener('submit', savePedido);
 
 // Produtos
-document.getElementById('add-produto-btn').addEventListener('click', showProdutoForm);
+// Adicione isso na seção de event listeners (geralmente no final do arquivo)
+document.getElementById('add-produto-btn').addEventListener('click', function() {
+    console.log('Botão add-produto-btn clicado!'); // Debug 6
+    showProdutoForm();
+});
 document.getElementById('cancel-produto-btn').addEventListener('click', hideProdutoForm);
 document.getElementById('produto-form').addEventListener('submit', saveProduto);
 
@@ -597,4 +664,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pedido-form-container').classList.add('hidden');
     document.getElementById('produto-form-container').classList.add('hidden');
     document.getElementById('register-form').classList.add('hidden');
+    
+    // Listener para edição de produtos
+    document.addEventListener('click', async (e) => {
+        if (e.target.classList.contains('edit-produto-btn')) {
+            const produtoId = e.target.dataset.id;
+            const snapshot = await produtosRef.child(produtoId).once('value');
+            const produtoData = snapshot.val();
+            
+            if (produtoData) {
+                showProdutoForm({
+                    id: produtoId,
+                    descricao: produtoData.descricao,
+                    precoAtual: produtoData.precoAtual
+                });
+            }
+        }
+    });
 });
