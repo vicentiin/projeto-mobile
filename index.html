@@ -1,3 +1,5 @@
+Html
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -80,12 +82,11 @@
                     <thead>
                         <tr>
                             <th>ID</th>
+                            <th>Mesa</th>
                             <th>Status</th>
-                            <th>Produto</th>
-                            <th>Quantidade</th>
-                            <th>Preço Unitário</th>
-                            <th>Preço Total</th>
-                            <th>Funcionário</th>
+                            <th>Itens</th>
+                            <th>Total</th>
+                            <th>Atendente</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -104,7 +105,9 @@
                     <div class="form-col">
                         <div class="form-group">
                             <label for="pedido-id">ID do Pedido</label>
-                            <input type="text" id="pedido-id" required>
+                            <input type="text" id="pedido-id" class="form-control" readonly 
+                                   placeholder="(Gerando ID...)"
+                                   style="background-color: #f5f5f5;">
                         </div>
                         <div class="form-group">
                             <label for="pedido-status">Status</label>
@@ -129,6 +132,11 @@
                             <input type="number" id="pedido-quantidade" min="1" value="1" required>
                         </div>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="pedido-mesa">Nº da Conta</label>
+                    <input type="text" id="pedido-mesa" class="form-control" required 
+                           placeholder="Ex: Conta 123">
                 </div>
                 <button type="submit" id="save-pedido-btn">Salvar</button>
                 <button type="button" id="cancel-pedido-btn">Cancelar</button>

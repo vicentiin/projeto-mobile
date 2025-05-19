@@ -1,3 +1,5 @@
+Js
+
 // Configuração do Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyBALTio5D2MT-1Kbuzzu47h2EY0102OO4M",
@@ -41,7 +43,7 @@ let currentUser = null;
 // Função para mostrar mensagem
 function showMessage(message, isError = false) {
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isError ? 'error' : 'success'}`;
+    messageDiv.className = message `${isError ? 'error' : 'success'}`;
     messageDiv.textContent = message;
     
     document.body.appendChild(messageDiv);
@@ -209,43 +211,46 @@ function loadData() {
     }
 }
 
-// Função para carregar pedidos
 function loadPedidos() {
     pedidosRef.on('value', (snapshot) => {
         const pedidosList = document.getElementById('pedidos-list');
-        pedidosList.innerHTML = '';
-        
+        pedidosList.innerHTML = ''; // Limpa a tabela
+
         snapshot.forEach((childSnapshot) => {
             const pedido = childSnapshot.val();
             const row = document.createElement('tr');
-            
+
+            // Formata os itens para exibição
+            const itensFormatados = pedido.itens 
+                ? pedido.itens.map(item => `${item.quantidade}x ${item.descricao}`).join(', ')
+                : 'Nenhum item';
+
             row.innerHTML = `
-                <td>${pedido.idPedido}</td>
-                <td>${pedido.status}</td>
-                <td>${pedido.descricaoProduto}</td>
-                <td>${pedido.quantidade}</td>
-                <td>R$ ${pedido.precoUnitario?.toFixed(2) || '0.00'}</td>
-                <td>R$ ${pedido.precoDia?.toFixed(2) || '0.00'}</td>
+                <td>${childSnapshot.key}</td>
+                <td>${pedido.mesa || 'N/D'}</td>
+                <td>${pedido.status || 'PENDENTE'}</td>
+                <td>${itensFormatados}</td>
+                <td>R$ ${pedido.total?.toFixed(2) || '0.00'}</td>
                 <td>${pedido.nomeFuncionario || 'N/A'}</td>
                 <td>
-                    <button class="action-btn edit-btn" data-id="${pedido.idPedido}">Editar</button>
-                    ${currentUser.isAdmin ? `<button class="action-btn delete-btn" data-id="${pedido.idPedido}">Excluir</button>` : ''}
+                    <button class="action-btn edit-btn" data-id="${childSnapshot.key}">Editar</button>
+                    ${(currentUser.isAdmin || pedido.idFuncionario === currentUser.uid) ? 
+                        <button class="action-btn delete-btn" data-id="${childSnapshot.key}">Excluir</button> : ''}
                 </td>
             `;
-            
+
             pedidosList.appendChild(row);
         });
-        
-        // Adicionar event listeners para os botões
+
+        // Adiciona listeners para TODOS os botões (tanto de edição quanto exclusão)
         document.querySelectorAll('.edit-btn').forEach(btn => {
             btn.addEventListener('click', () => editPedido(btn.dataset.id));
         });
-        
-        if (currentUser.isAdmin) {
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', () => deletePedido(btn.dataset.id));
-            });
-        }
+
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => deletePedido(btn.dataset.id));
+        });
+
     }, (error) => {
         console.error('Erro ao carregar pedidos:', error);
     });
@@ -362,18 +367,28 @@ async function getNextProdutoId() {
     });
     return transaction.snapshot.val();
 }
-function showPedidoForm() {
-    document.getElementById('pedido-form-title').textContent = 'Adicionar Pedido';
-    document.getElementById('pedido-edit-mode').value = 'false';
-    document.getElementById('pedido-id').value = '';
-    document.getElementById('pedido-status').value = 'PENDENTE';
-    document.getElementById('pedido-quantidade').value = '1';
-    
-    document.getElementById('pedidos-table-container').classList.add('hidden');
-    document.getElementById('pedido-form-container').classList.remove('hidden');
-    
-    // Atualizar dropdown de produtos se necessário
-    updateProdutosDropdown();
+async function showPedidoForm() {
+    try {
+        // Gera um ID numérico automático
+        const nextId = await getNextPedidoId();
+        document.getElementById('pedido-id').value = nextId;
+
+        // Restante do código
+        document.getElementById('pedido-form-title').textContent = 'Adicionar Pedido';
+        document.getElementById('pedido-edit-mode').value = 'false';
+        document.getElementById('pedido-status').value = 'PENDENTE';
+        document.getElementById('pedido-quantidade').value = '1';
+        document.getElementById('pedido-mesa').value = '';
+
+        document.getElementById('pedidos-table-container').classList.add('hidden');
+        document.getElementById('pedido-form-container').classList.remove('hidden');
+
+        await updateProdutosDropdown();
+
+    } catch (error) {
+        console.error('Erro ao gerar ID do pedido:', error);
+        showMessage('Erro ao preparar formulário: ' + error.message, true);
+    }
 }
 // Função para esconder formulário de pedido
 function hidePedidoForm() {
@@ -381,118 +396,160 @@ function hidePedidoForm() {
     document.getElementById('pedido-form-container').classList.add('hidden');
 }
 
-// Função para editar pedido
 async function editPedido(idPedido) {
     try {
+        console.log("🔍 Iniciando edição do pedido:", idPedido);
+
+        // 1. Busca o pedido no Firebase
         const snapshot = await pedidosRef.child(idPedido).once('value');
         const pedido = snapshot.val();
-        
+
+        console.log("📦 Dados brutos do pedido:", pedido);
+
         if (!pedido) {
-            throw new Error('Pedido não encontrado');
+            throw new Error("Pedido não encontrado no banco de dados");
         }
-        
+
+        // 2. Verifica se o usuário tem permissão
+        if (!currentUser.isAdmin && pedido.idFuncionario !== currentUser.uid) {
+            throw new Error("Você só pode editar seus próprios pedidos");
+        }
+
+        // 3. Preenche os campos do formulário
         document.getElementById('pedido-form-title').textContent = 'Editar Pedido';
         document.getElementById('pedido-edit-mode').value = 'true';
-        document.getElementById('pedido-id').value = pedido.idPedido;
-        document.getElementById('pedido-status').value = pedido.status;
-        document.getElementById('pedido-quantidade').value = pedido.quantidade;
-        
-        // Aguardar o dropdown de produtos ser carregado
+        document.getElementById('pedido-id').value = idPedido;
+        document.getElementById('pedido-mesa').value = pedido.mesa || '';
+        document.getElementById('pedido-status').value = pedido.status || 'PENDENTE';
+
+        // 4. Carrega produtos e ESPERA finalizar
         await updateProdutosDropdown();
-        document.getElementById('pedido-produto').value = pedido.idProduto;
-        
+        console.log("✅ Dropdown de produtos carregado");
+
+        // 5. Preenche itens (compatível com formato novo e antigo)
+        const produtoSelect = document.getElementById('pedido-produto');
+        const quantidadeInput = document.getElementById('pedido-quantidade');
+
+        // Verifica formato dos itens
+        if (pedido.itens && pedido.itens.length > 0) {
+            // Formato NOVO (com array de itens)
+            produtoSelect.value = pedido.itens[0].idProduto || '';
+            quantidadeInput.value = pedido.itens[0].quantidade || 1;
+        } else if (pedido.idProduto) {
+            // Formato ANTIGO (campos diretos)
+            produtoSelect.value = pedido.idProduto;
+            quantidadeInput.value = pedido.quantidade || 1;
+        } else {
+            // Sem itens definidos
+            produtoSelect.value = '';
+            quantidadeInput.value = 1;
+        }
+
+        // 6. Exibe o formulário
         document.getElementById('pedidos-table-container').classList.add('hidden');
         document.getElementById('pedido-form-container').classList.remove('hidden');
-        
+
+        console.log("✨ Formulário carregado com:", {
+            produto: produtoSelect.value,
+            quantidade: quantidadeInput.value,
+            mesa: pedido.mesa,
+            status: pedido.status
+        });
+
     } catch (error) {
-        console.error('Erro ao editar pedido:', error);
-        showMessage('Erro ao carregar pedido: ' + error.message, true);
+        console.error("💥 Erro detalhado:", {
+            message: error.message,
+            stack: error.stack
+        });
+        showMessage(`Falha ao carregar pedido: ${error.message}`, true);
     }
 }
 
-// Função para salvar pedido
 async function savePedido(e) {
     e.preventDefault();
-    
+
     try {
-        const isEditMode = document.getElementById('pedido-edit-mode').value === 'true';
-        const idPedido = document.getElementById('pedido-id').value.trim();
+        // 1. Coleta dos valores do formulário
+        const idPedido = document.getElementById('pedido-id').value;
+        const mesa = document.getElementById('pedido-mesa').value.trim();
         const status = document.getElementById('pedido-status').value;
         const idProduto = document.getElementById('pedido-produto').value;
         const quantidade = parseInt(document.getElementById('pedido-quantidade').value);
-        
-        // Validar campos
-        if (!idPedido) throw new Error('ID do pedido é obrigatório');
-        if (!status) throw new Error('Status é obrigatório');
+
+        // 2. Validações
+        if (!mesa) throw new Error("Número da mesa é obrigatório");
+        if (!status) throw new Error("Status é obrigatório");
         if (!idProduto) throw new Error('Selecione um produto');
         if (isNaN(quantidade) || quantidade <= 0) throw new Error('Quantidade inválida');
-        
-        // Obter dados do produto
+
+        // 3. Busca o produto no Firebase
         const produtoSnapshot = await produtosRef.child(idProduto).once('value');
         const produto = produtoSnapshot.val();
-        
-        if (!produto) {
-            throw new Error('Produto não encontrado');
-        }
-        
-        const precoUnitario = produto.precoAtual;
-        const precoDia = precoUnitario * quantidade;
-        
-        // Criar objeto do pedido
+        if (!produto) throw new Error('Produto não encontrado');
+
+        // 4. Calcula o total
+        const total = produto.precoAtual * quantidade;
+
+        // 5. Monta o objeto do pedido
         const pedidoData = {
             idPedido: idPedido,
-            status: status,
-            idProduto: idProduto,
-            descricaoProduto: produto.descricao,
-            precoUnitario: precoUnitario,
-            quantidade: quantidade,
-            precoDia: precoDia,
+            mesa: mesa,
+            status: status, // Usando a constante já declarada
+            itens: [{
+                idProduto: idProduto,
+                descricao: produto.descricao,
+                quantidade: quantidade,
+                precoUnitario: produto.precoAtual
+            }],
+            total: total,
+            idFuncionario: currentUser.uid,
             nomeFuncionario: currentUser.nome,
             timestamp: firebase.database.ServerValue.TIMESTAMP
         };
 
-        // Se for edição, verificar se o pedido pertence ao usuário atual (exceto para admin)
-        if (isEditMode && !currentUser.isAdmin) {
-            const pedidoExistente = await pedidosRef.child(idPedido).once('value');
-            if (pedidoExistente.exists()) {
-                const idFuncionarioOriginal = pedidoExistente.val().idFuncionario;
-                if (idFuncionarioOriginal !== currentUser.uid) {
-                    throw new Error('Você não tem permissão para editar este pedido');
-                }
-                // Manter o idFuncionario original
-                pedidoData.idFuncionario = idFuncionarioOriginal;
-            }
-        } else {
-            // Para novos pedidos ou admin editando, usar o uid atual
-            pedidoData.idFuncionario = currentUser.uid;
-        }
-        
-        // Salvar no Firebase
+        // 6. Salva no Firebase
         await pedidosRef.child(idPedido).set(pedidoData);
-        
+
+        // 7. Feedback e reset
+        showMessage(`Pedido #${idPedido} salvo com sucesso!`);
         hidePedidoForm();
-        showMessage('Pedido salvo com sucesso!');
         loadPedidos();
-        
+
     } catch (error) {
         console.error('Erro ao salvar pedido:', error);
-        showMessage('Erro ao salvar pedido: ' + error.message, true);
+        showMessage('Erro: ' + error.message, true);
     }
+}
+async function getNextPedidoId() {
+    const counterRef = database.ref('counters/pedidos');
+    const transaction = await counterRef.transaction(currentValue => {
+        return (currentValue || 1000) + 1; // Começa do 1000 se não existir
+    });
+    return transaction.snapshot.val();
 }
 
 // Função para deletar pedido
 async function deletePedido(idPedido) {
-    if (confirm('Tem certeza que deseja excluir este pedido?')) {
-        try {
+    try {
+        // Verifica se o pedido pertence ao usuário ou se é admin
+        const snapshot = await pedidosRef.child(idPedido).once('value');
+        const pedido = snapshot.val();
+
+        if (!pedido) throw new Error('Pedido não encontrado');
+
+        if (!currentUser.isAdmin && pedido.idFuncionario !== currentUser.uid) {
+            throw new Error('Você só pode excluir seus próprios pedidos');
+        }
+
+        if (confirm('Tem certeza que deseja excluir este pedido?')) {
             await pedidosRef.child(idPedido).remove();
             showMessage('Pedido excluído com sucesso!');
-        } catch (error) {
-            console.error('Erro ao excluir pedido:', error);
-            showMessage('Erro ao excluir pedido: ' + error.message, true);
         }
+    } catch (error) {
+        console.error('Erro ao excluir pedido:', error);
+        showMessage('Erro: ' + error.message, true);
     }
 }
-
 
 // Função para esconder formulário de produto
 function hideProdutoForm() {
@@ -501,38 +558,6 @@ function hideProdutoForm() {
 }
 
 // Função para editar produto
-async function editPedido(idPedido) {
-    try {
-        const snapshot = await pedidosRef.child(idPedido).once('value');
-        const pedido = snapshot.val();
-        
-        if (!pedido) {
-            throw new Error('Pedido não encontrado');
-        }
-
-        // 🚨 Validar se o garçom é o dono do pedido
-        if (!currentUser.isAdmin && pedido.idFuncionario !== currentUser.uid) {
-            throw new Error('Você não tem permissão para editar este pedido');
-        }
-        
-        document.getElementById('pedido-form-title').textContent = 'Editar Pedido';
-        document.getElementById('pedido-edit-mode').value = 'true';
-        document.getElementById('pedido-id').value = pedido.idPedido;
-        document.getElementById('pedido-status').value = pedido.status;
-        document.getElementById('pedido-quantidade').value = pedido.quantidade;
-        
-        // Aguardar o dropdown de produtos ser carregado
-        await updateProdutosDropdown();
-        document.getElementById('pedido-produto').value = pedido.idProduto;
-        
-        document.getElementById('pedidos-table-container').classList.add('hidden');
-        document.getElementById('pedido-form-container').classList.remove('hidden');
-        
-    } catch (error) {
-        console.error('Erro ao editar pedido:', error);
-        showMessage('Erro ao editar pedido: ' + error.message, true);
-    }
-}
 
 async function saveProduto(e) {
     e.preventDefault();
@@ -578,6 +603,38 @@ async function saveProduto(e) {
     }
 }
 
+async function editProduto(idProduto) {
+    try {
+        console.log("[DEBUG] Iniciando edição do produto:", idProduto);
+
+        // 1. Busca o produto no Firebase
+        const snapshot = await produtosRef.child(idProduto).once('value');
+        const produto = snapshot.val();
+
+        console.log("[DEBUG] Dados do produto:", produto);
+
+        if (!produto) {
+            throw new Error('Produto não encontrado');
+        }
+
+        // 2. Preenche o formulário
+        document.getElementById('produto-form-title').textContent = 'Editar Produto';
+        document.getElementById('produto-edit-mode').value = 'true';
+        document.getElementById('produto-id').value = idProduto;
+        document.getElementById('produto-descricao').value = produto.descricao || '';
+        document.getElementById('produto-preco').value = produto.precoAtual || '0.00';
+
+        // 3. Exibe o formulário
+        document.getElementById('produtos-table-container').classList.add('hidden');
+        document.getElementById('produto-form-container').classList.remove('hidden');
+
+        console.log("[DEBUG] Formulário de produto pronto para edição");
+
+    } catch (error) {
+        console.error('[ERRO] Ao editar produto:', error);
+        showMessage('Erro ao carregar produto: ' + error.message, true);
+    }
+}
 
 // Função para deletar produto
 async function deleteProduto(idProduto) {

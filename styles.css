@@ -1,3 +1,5 @@
+CSS
+
 * {
     box-sizing: border-box;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -225,4 +227,22 @@ input[readonly] {
 .icon-plus:before {
     content: "+";
     margin-right: 5px;
+}
+/* Destacar coluna de mesa */
+#pedidos-table td:nth-child(2) {
+    font-weight: bold;
+    color: #2F3BA2;
+}
+
+/* Responsividade para mobile */
+@media (max-width: 600px) {
+    #pedidos-table th:nth-child(1), 
+    #pedidos-table td:nth-child(1) {
+        display: none;
+    }
+}
+#pedido-id {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    font-style: italic;
 }
