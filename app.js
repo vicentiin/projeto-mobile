@@ -1,5 +1,3 @@
-Js
-
 // Configuração do Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyBALTio5D2MT-1Kbuzzu47h2EY0102OO4M",
@@ -43,7 +41,7 @@ let currentUser = null;
 // Função para mostrar mensagem
 function showMessage(message, isError = false) {
     const messageDiv = document.createElement('div');
-    messageDiv.className = message `${isError ? 'error' : 'success'}`;
+    messageDiv.className = `message ${isError ? 'error' : 'success'}`;
     messageDiv.textContent = message;
     
     document.body.appendChild(messageDiv);
@@ -235,7 +233,7 @@ function loadPedidos() {
                 <td>
                     <button class="action-btn edit-btn" data-id="${childSnapshot.key}">Editar</button>
                     ${(currentUser.isAdmin || pedido.idFuncionario === currentUser.uid) ? 
-                        <button class="action-btn delete-btn" data-id="${childSnapshot.key}">Excluir</button> : ''}
+                        `<button class="action-btn delete-btn" data-id="${childSnapshot.key}">Excluir</button>` : ''}
                 </td>
             `;
 
