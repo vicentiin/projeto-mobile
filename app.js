@@ -1,13 +1,15 @@
 // Configuração do Firebase
+
 const firebaseConfig = {
-    apiKey: "AIzaSyBALTio5D2MT-1Kbuzzu47h2EY0102OO4M",
-    authDomain: "appcurso-41fe5.firebaseapp.com",
-    databaseURL: "https://appcurso-41fe5-default-rtdb.firebaseio.com",
-    projectId: "appcurso-41fe5",
-    storageBucket: "appcurso-41fe5.firebasestorage.app",
-    messagingSenderId: "194370805325",
-    appId: "1:194370805325:web:ecb45ea9d173d7e9f3c604"
-  };
+  apiKey: "AIzaSyBVIRDO3ByxlYNZlHSFslPelEK0fvFCbW0",
+  authDomain: "restaurante-15f51.firebaseapp.com",
+  databaseURL: "https://restaurante-15f51-default-rtdb.firebaseio.com",
+  projectId: "restaurante-15f51",
+  storageBucket: "restaurante-15f51.firebasestorage.app",
+  messagingSenderId: "218407221507",
+  appId: "1:218407221507:web:08db038a19f04d01b2d136"
+};
+
 
 // Inicializa o Firebase
 firebase.initializeApp(firebaseConfig);
@@ -106,64 +108,68 @@ async function registerFuncionario() {
 async function login() {
     const email = emailInput.value.trim();
     const password = passwordInput.value;
-    
+
     try {
+        console.log("Tentando login com:", email);
+
+        // 1. Autenticação no Firebase Auth
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
         const user = userCredential.user;
-        
-        // Obter informações adicionais do funcionário
+        console.log("Autenticação OK. UID:", user.uid);
+
+        // 2. Buscar dados do funcionário
         const snapshot = await funcionariosRef.child(user.uid).once('value');
         const funcionario = snapshot.val();
-        
-        if (!funcionario || !funcionario.ativo) {
-            await auth.signOut();
-            throw new Error('Acesso não autorizado. Sua conta pode estar desativada ou você não tem permissão para acessar o sistema.');
+        console.log("Dados do funcionário:", funcionario);
+
+        if (!funcionario) {
+            throw new Error('Cadastro de funcionário não encontrado');
         }
-        
+
+        if (funcionario.ativo === false) {
+            throw new Error('Sua conta está desativada');
+        }
+
+        // 3. Atualizar estado do usuário
         currentUser = {
             uid: user.uid,
             email: user.email,
             isAdmin: funcionario.tipo === 'gerente',
             nome: funcionario.nome
         };
-        
+
+        console.log("Usuário logado:", currentUser);
         updateUIForUser();
         loadData();
-        
+
     } catch (error) {
-        console.error('Erro no login:', error);
-        
-        let errorMessage = 'Erro ao fazer login';
-        
-        // Verifica se é um erro do Firebase Authentication
-        if (error instanceof Error && error.message.includes('auth/')) {
-            const errorCode = error.message.split('auth/')[1].split(')')[0];
-            
-            switch (errorCode) {
-                case 'invalid-email':
-                    errorMessage = 'E-mail inválido. Por favor, verifique o formato.';
+        console.error('Erro detalhado no login:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
+
+        let errorMessage = 'E-mail ou senha incorretos.';
+        if (error.code) {
+            switch (error.code) {
+                case 'auth/invalid-email':
+                    errorMessage = 'E-mail inválido';
                     break;
-                case 'user-disabled':
-                    errorMessage = 'Esta conta foi desativada.';
+                case 'auth/user-disabled':
+                    errorMessage = 'Conta desativada';
                     break;
-                case 'user-not-found':
-                case 'wrong-password':
-                    errorMessage = 'E-mail ou senha incorretos.';
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                    errorMessage = 'E-mail ou senha incorretos';
                     break;
-                case 'too-many-requests':
-                    errorMessage = 'Muitas tentativas falhas. Tente novamente mais tarde.';
+                case 'auth/too-many-requests':
+                    errorMessage = 'Muitas tentativas. Tente mais tarde';
                     break;
-                case 'network-request-failed':
-                    errorMessage = 'Problema de conexão. Verifique sua internet.';
-                    break;
-                default:
-                    errorMessage = 'E-mail ou senha incorretos.';
             }
         } else {
-            // Para outros erros (como o seu throw new Error)
-            errorMessage = error.message || 'Erro ao fazer login.';
+            errorMessage = error.message || error;
         }
-        
+
         loginError.textContent = errorMessage;
         loginError.style.display = 'block';
     }
@@ -300,11 +306,12 @@ function loadProdutos() {
 }
 
 // Função para atualizar dropdown de produtos
-function updateProdutosDropdown() {
-    produtosRef.once('value').then((snapshot) => {
+async function updateProdutosDropdown() {
+    try {
+        const snapshot = await produtosRef.once('value');
         const dropdown = document.getElementById('pedido-produto');
         dropdown.innerHTML = '<option value="">Selecione um produto</option>';
-        
+
         snapshot.forEach((childSnapshot) => {
             const produto = childSnapshot.val();
             const option = document.createElement('option');
@@ -312,9 +319,10 @@ function updateProdutosDropdown() {
             option.textContent = `${produto.descricao} (R$ ${produto.precoAtual?.toFixed(2) || '0.00'})`;
             dropdown.appendChild(option);
         });
-    }).catch(error => {
+    } catch (error) {
         console.error('Erro ao carregar produtos para dropdown:', error);
-    });
+        throw error; // opcional, para propagar erro
+    }
 }
 
 function showProdutoForm(produto = null) {
@@ -361,31 +369,35 @@ function showProdutoForm(produto = null) {
 async function getNextProdutoId() {
     const counterRef = database.ref('counters/produtos');
     const transaction = await counterRef.transaction(currentValue => {
-        return (currentValue || 1000) + 1; // Começa do 1000 se não existir
+        return (currentValue || 1000) + 1;
     });
     return transaction.snapshot.val();
 }
 async function showPedidoForm() {
     try {
-        // Gera um ID numérico automático
-        const nextId = await getNextPedidoId();
-        document.getElementById('pedido-id').value = nextId;
+        // Verifica se o usuário tem permissão
+        if (!currentUser) throw new Error("Usuário não autenticado");
 
-        // Restante do código
-        document.getElementById('pedido-form-title').textContent = 'Adicionar Pedido';
+        // Preenche os campos básicos
+        document.getElementById('pedido-form-title').textContent = 'Novo Pedido';
         document.getElementById('pedido-edit-mode').value = 'false';
         document.getElementById('pedido-status').value = 'PENDENTE';
         document.getElementById('pedido-quantidade').value = '1';
         document.getElementById('pedido-mesa').value = '';
 
+        // Gera um ID temporário (será substituído pelo push() do Firebase)
+        document.getElementById('pedido-id').value = "GERANDO...";
+
+        // Carrega produtos (AGUARDA a conclusão)
+        await updateProdutosDropdown();
+
+        // Exibe o formulário
         document.getElementById('pedidos-table-container').classList.add('hidden');
         document.getElementById('pedido-form-container').classList.remove('hidden');
 
-        await updateProdutosDropdown();
-
     } catch (error) {
-        console.error('Erro ao gerar ID do pedido:', error);
-        showMessage('Erro ao preparar formulário: ' + error.message, true);
+        console.error("Erro ao preparar formulário:", error);
+        showMessage("Erro: " + error.message, true);
     }
 }
 // Função para esconder formulário de pedido
@@ -413,7 +425,6 @@ async function editPedido(idPedido) {
             throw new Error("Você só pode editar seus próprios pedidos");
         }
 
-        // 3. Preenche os campos do formulário
         document.getElementById('pedido-form-title').textContent = 'Editar Pedido';
         document.getElementById('pedido-edit-mode').value = 'true';
         document.getElementById('pedido-id').value = idPedido;
@@ -424,24 +435,21 @@ async function editPedido(idPedido) {
         await updateProdutosDropdown();
         console.log("✅ Dropdown de produtos carregado");
 
-        // 5. Preenche itens (compatível com formato novo e antigo)
+        // 5. Preenche itens (produto e quantidade)
         const produtoSelect = document.getElementById('pedido-produto');
         const quantidadeInput = document.getElementById('pedido-quantidade');
 
-        // Verifica formato dos itens
         if (pedido.itens && pedido.itens.length > 0) {
-            // Formato NOVO (com array de itens)
             produtoSelect.value = pedido.itens[0].idProduto || '';
             quantidadeInput.value = pedido.itens[0].quantidade || 1;
         } else if (pedido.idProduto) {
-            // Formato ANTIGO (campos diretos)
             produtoSelect.value = pedido.idProduto;
             quantidadeInput.value = pedido.quantidade || 1;
         } else {
-            // Sem itens definidos
             produtoSelect.value = '';
             quantidadeInput.value = 1;
         }
+
 
         // 6. Exibe o formulário
         document.getElementById('pedidos-table-container').classList.add('hidden');
@@ -462,93 +470,151 @@ async function editPedido(idPedido) {
         showMessage(`Falha ao carregar pedido: ${error.message}`, true);
     }
 }
-
 async function savePedido(e) {
     e.preventDefault();
 
     try {
-        // 1. Coleta dos valores do formulário
-        const idPedido = document.getElementById('pedido-id').value;
-        const mesa = document.getElementById('pedido-mesa').value.trim();
+        // 1. Verificação de autenticação
+        if (!currentUser) {
+            throw new Error("Usuário não autenticado");
+        }
+
+        // 2. Coletar e validar dados do formulário
+        const mesaInput = document.getElementById('pedido-mesa').value.trim();
+        const mesa = parseInt(mesaInput);
+        if (isNaN(mesa) || mesa <= 0) throw new Error("Número da mesa inválido");
+
         const status = document.getElementById('pedido-status').value;
         const idProduto = document.getElementById('pedido-produto').value;
-        const quantidade = parseInt(document.getElementById('pedido-quantidade').value);
 
-        // 2. Validações
-        if (!mesa) throw new Error("Número da mesa é obrigatório");
-        if (!status) throw new Error("Status é obrigatório");
-        if (!idProduto) throw new Error('Selecione um produto');
-        if (isNaN(quantidade) || quantidade <= 0) throw new Error('Quantidade inválida');
+        const quantidadeInput = document.getElementById('pedido-quantidade').value;
+        const quantidade = parseInt(quantidadeInput);
+        if (isNaN(quantidade) || quantidade <= 0) throw new Error("Quantidade deve ser um número positivo");
 
-        // 3. Busca o produto no Firebase
+        const isEditMode = document.getElementById('pedido-edit-mode').value === 'true';
+        const idPedido = document.getElementById('pedido-id').value;
+
+        // 3. Buscar informações do produto com tratamento de erro
         const produtoSnapshot = await produtosRef.child(idProduto).once('value');
+        if (!produtoSnapshot.exists()) throw new Error("Produto não encontrado");
+
         const produto = produtoSnapshot.val();
-        if (!produto) throw new Error('Produto não encontrado');
+        if (!produto || !produto.precoAtual) throw new Error("Dados do produto inválidos");
 
-        // 4. Calcula o total
-        const total = produto.precoAtual * quantidade;
+        // Converter preço para número com segurança
+        const precoUnitario = parseFloat(produto.precoAtual);
+        if (isNaN(precoUnitario)) throw new Error("Preço do produto inválido");
 
-        // 5. Monta o objeto do pedido
+        // 4. Calcular totais garantindo que são números
+        const subtotal = precoUnitario * quantidade;
+        const total = subtotal; // Pode ser expandido para múltiplos itens depois
+
+        // 5. Montar objeto do pedido com valores numéricos garantidos
         const pedidoData = {
-            idPedido: idPedido,
             mesa: mesa,
-            status: status, // Usando a constante já declarada
+            status: status || 'pendente',
             itens: [{
                 idProduto: idProduto,
-                descricao: produto.descricao,
+                descricao: produto.descricao || 'Produto sem descrição',
                 quantidade: quantidade,
-                precoUnitario: produto.precoAtual
+                precoUnitario: precoUnitario,
+                subtotal: subtotal
             }],
             total: total,
             idFuncionario: currentUser.uid,
-            nomeFuncionario: currentUser.nome,
-            timestamp: firebase.database.ServerValue.TIMESTAMP
+                nomeFuncionario: currentUser.nome || currentUser.email.split('@')[0],
+            timestamp: firebase.database.ServerValue.TIMESTAMP,
+            atualizadoEm: firebase.database.ServerValue.TIMESTAMP
         };
 
-        // 6. Salva no Firebase
-        await pedidosRef.child(idPedido).set(pedidoData);
+        // 6. Salvar no Firebase
+        if (isEditMode) {
+            if (!idPedido) throw new Error("ID do pedido não informado para edição");
 
-        // 7. Feedback e reset
-        showMessage(`Pedido #${idPedido} salvo com sucesso!`);
+            const pedidoExistente = await pedidosRef.child(idPedido).once('value');
+            if (pedidoExistente.exists()) {
+                pedidoData.criadoEm = pedidoExistente.val().criadoEm || firebase.database.ServerValue.TIMESTAMP;
+            }
+
+            await pedidosRef.child(idPedido).update(pedidoData);
+            showMessage(`Pedido #${idPedido} atualizado com sucesso!`);
+        } else {
+            const novoId = await getNextPedidoId();
+            pedidoData.criadoEm = firebase.database.ServerValue.TIMESTAMP;
+
+            await pedidosRef.child(novoId).set(pedidoData);
+            showMessage(`Pedido #${novoId} cadastrado com sucesso!`);
+        }
+
+        // 7. Atualizar interface
         hidePedidoForm();
         loadPedidos();
 
     } catch (error) {
-        console.error('Erro ao salvar pedido:', error);
-        showMessage('Erro: ' + error.message, true);
+        console.error("Erro ao salvar pedido:", error);
+        showMessage("Erro: " + error.message, true);
     }
 }
-async function getNextPedidoId() {
-    const counterRef = database.ref('counters/pedidos');
-    const transaction = await counterRef.transaction(currentValue => {
-        return (currentValue || 1000) + 1; // Começa do 1000 se não existir
-    });
-    return transaction.snapshot.val();
-}
 
-// Função para deletar pedido
+// Função auxiliar para gerar IDs sequenciais
+async function getNextPedidoId() {
+    try {
+        const snapshot = await pedidosRef.orderByKey().limitToLast(1).once('value');
+        let lastId = 0;
+
+        snapshot.forEach(childSnapshot => {
+            const id = parseInt(childSnapshot.key);
+            if (!isNaN(id)) lastId = id;
+        });
+
+        return lastId + 1;
+    } catch (error) {
+        console.error("Erro ao gerar novo ID de pedido:", error);
+        return new Date().getTime(); // Fallback seguro
+    }
+}
 async function deletePedido(idPedido) {
     try {
-        // Verifica se o pedido pertence ao usuário ou se é admin
-        const snapshot = await pedidosRef.child(idPedido).once('value');
+        // 1. Verificar autenticação
+        if (!currentUser) {
+            throw new Error("Faça login para continuar");
+        }
+
+        // 2. Buscar o pedido e verificar permissões
+        const pedidoRef = firebase.database().ref(`pedidos/${idPedido}`);
+        const snapshot = await pedidoRef.once('value');
+
+        if (!snapshot.exists()) {
+            throw new Error("Pedido não encontrado");
+        }
+
         const pedido = snapshot.val();
+        const isAdmin = currentUser.isAdmin;
+        const isOwner = pedido.idFuncionario === currentUser.uid;
 
-        if (!pedido) throw new Error('Pedido não encontrado');
-
-        if (!currentUser.isAdmin && pedido.idFuncionario !== currentUser.uid) {
-            throw new Error('Você só pode excluir seus próprios pedidos');
+        // 3. Verificar se é admin OU dono do pedido pendente
+        if (!isAdmin && (!isOwner || !['entregue', 'ENTREGUE'].includes(pedido.status))) {
+            throw new Error("Você só pode excluir seus próprios pedidos com status 'entregue'");
         }
 
-        if (confirm('Tem certeza que deseja excluir este pedido?')) {
-            await pedidosRef.child(idPedido).remove();
-            showMessage('Pedido excluído com sucesso!');
+
+        // 4. Confirmação explícita
+        if (!confirm(`Tem certeza que deseja EXCLUIR PERMANENTEMENTE o pedido #${idPedido}?`)) {
+            return;
         }
+
+        // 5. Exclusão definitiva
+        await pedidoRef.remove();
+
+        // 6. Feedback e atualização
+        showMessage(`Pedido #${idPedido} excluído com sucesso!`);
+        loadPedidos(); // Atualiza a lista na tela
+
     } catch (error) {
-        console.error('Erro ao excluir pedido:', error);
-        showMessage('Erro: ' + error.message, true);
+        console.error("Erro ao excluir pedido:", error);
+        showMessage(`Erro: ${error.message}`, true);
     }
 }
-
 // Função para esconder formulário de produto
 function hideProdutoForm() {
     document.getElementById('produtos-table-container').classList.remove('hidden');
@@ -561,43 +627,44 @@ async function saveProduto(e) {
     e.preventDefault();
 
     try {
-        const descricaoInput = document.getElementById('produto-descricao');
-        const precoInput = document.getElementById('produto-preco');
-        
-        const descricao = descricaoInput.value.trim();
-        const precoAtual = parseFloat(precoInput.value);
+        // 1. Verificar se é admin
+        if (!currentUser.isAdmin) {
+            throw new Error("Apenas administradores podem cadastrar produtos");
+        }
+
+        // 2. Coletar dados do formulário
+        const descricao = document.getElementById('produto-descricao').value.trim();
+        const preco = parseFloat(document.getElementById('produto-preco').value);
         const isEditMode = document.getElementById('produto-edit-mode').value === 'true';
         const idProduto = document.getElementById('produto-id').value;
 
-        // Validações
-        if (!descricao) throw new Error('Descrição é obrigatória');
-        if (isNaN(precoAtual) || precoAtual <= 0) throw new Error('Preço inválido');
+        // 3. Validações
+        if (!descricao) throw new Error("Descrição é obrigatória");
+        if (isNaN(preco) || preco <= 0) throw new Error("Preço inválido");
 
+        // 4. Montar objeto do produto
         const produtoData = {
             descricao: descricao,
-            precoAtual: precoAtual,
+            precoAtual: preco,
             timestamp: firebase.database.ServerValue.TIMESTAMP
         };
 
+        // 5. Salvar no Firebase
         if (isEditMode) {
-            if (!idProduto) throw new Error('ID do produto é obrigatório para edição');
             await produtosRef.child(idProduto).update(produtoData);
+            showMessage("Produto atualizado com sucesso!");
         } else {
-            // Modo criação - gera novo ID numérico
-            const newId = await getNextProdutoId();
-            await produtosRef.child(newId).set(produtoData);
-            
-            // Atualiza o campo ID no formulário
-            document.getElementById('produto-id').value = newId;
+            const novoId = await getNextProdutoId();
+            await produtosRef.child(novoId).set(produtoData);
+            showMessage(`Produto #${novoId} cadastrado!`);
         }
 
         hideProdutoForm();
-        showMessage('Produto salvo com sucesso!');
         loadProdutos();
 
     } catch (error) {
-        console.error('Erro ao salvar produto:', error);
-        showMessage('Erro ao salvar produto: ' + error.message, true);
+        console.error("Erro ao salvar produto:", error);
+        showMessage("Erro: " + error.message, true);
     }
 }
 
